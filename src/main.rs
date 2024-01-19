@@ -27,7 +27,7 @@ fn init_address_list() -> Vec<String> {
 fn get_address(addr_list: Option<Vec<String>>) -> String {
     match addr_list {
         None => {
-            tracing::warn!("没有地址列表，使用默认地址");
+            tracing::warn!("将为作者提交一次");
             "0x15FCEA85bEdA82e9e186d968C1CDC2c96865f917".to_lowercase()
         }
         Some(list) => {
