@@ -100,7 +100,7 @@ async fn test_find_solution() {
 
 async fn run_miner() -> Result<()> {
     let agent = reqwest::Client::builder()
-        .timeout(Duration::from_secs(2))
+        // .timeout(Duration::from_secs(5))
         .danger_accept_invalid_certs(true)
         .build()?;
     let address_list = init_address_list();
