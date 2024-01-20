@@ -138,6 +138,7 @@ async fn run_miner() -> Result<()> {
             .header("sec-fetch-mode", "cors")
             .header("sec-fetch-site", "cross-site")
             .header("user-agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+        tracing::info!("准备提交 {solution}");
         match res.send().await {
             Err(e) => {
                 tracing::info!("出错: {}", e);
