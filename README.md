@@ -5,6 +5,9 @@
 ## 修改指南
 将 `src/main.rs` 中的 `get_address(None)` 修改为 `get_address(Some(address_list.clone()))` 即可
 
+# 提示
+当前似乎只有提交返回成功才能算成功，所以取消了超时设定。网络慢可能会导致cpu空闲时间长，可以尝试多开软件
+
 # 使用指南
 ## 通过源码使用
 
