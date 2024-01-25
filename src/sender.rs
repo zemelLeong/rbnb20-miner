@@ -67,9 +67,15 @@ impl Sender {
             Err(e) => {
                 tracing::error!("出错: {}", e);
                 self.save_to_redis(data)?;
+                tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
             }
             Ok(res) => {
                 let status = res.status();
+                if status == 503 {
+                    tracing::info!("状态码: {}，将重新放入redis或丢弃", status);
+                    self.save_to_redis(data)?;
+                    return Ok(());
+                }
                 if status != 200 {
                     let text = res.text().await?;
                     tracing::info!("状态码: {status}, 返回值: {}", text);
