@@ -36,3 +36,10 @@ cargo run --release run-miner
 2. 在本软件相同目录下创建 `address_list.txt` 文件，每行一个地址
 3. 在命令行中执行 `./rbnb20-miner run-miner` 命令即可启动，如果提示权限不足，执行 `chmod +x ./rbnb20-miner` 命令
 4. 查看当前收益，执行 `./rbnb20-miner check-balance <address>`
+
+## 使用redis缓存数据
+由于服务器经常崩溃，且六个九计算量不小，所以增加redis缓存数据功能，可以在服务器崩溃后将要提交的数据缓存到redis中，服务器恢复后再提交，充分利用电脑性能
+
+1. 自行安装redis软件：https://redis.io/docs/install/install-redis/
+2. 执行命令启动服务：`./rbnb20-miner[.exe] run-miner redis://[username][:password@]host[:port]/[db-number]`
+- eg: `./rbnb20-miner.exe run-miner redis://:password@localhost:6379/0` 

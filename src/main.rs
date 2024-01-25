@@ -1,3 +1,5 @@
+mod sender;
+
 use std::time::Duration;
 use anyhow::{anyhow, Result};
 use ethers::abi::AbiEncode;
@@ -7,6 +9,7 @@ use clap::{Args, Parser, Subcommand};
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
+use crate::sender::Sender;
 
 /// 读取 `address_list.txt` 文件，初始化地址列表
 fn init_address_list() -> Vec<String> {
@@ -98,13 +101,10 @@ async fn test_find_solution() {
     tracing::info!("{:?}", res);
 }
 
-async fn run_miner() -> Result<()> {
-    let agent = reqwest::Client::builder()
-        // .timeout(Duration::from_secs(5))
-        .danger_accept_invalid_certs(true)
-        .build()?;
+async fn run_miner(sender: Sender) -> Result<()> {
     let address_list = init_address_list();
     let mut counter = 0;
+    tracing::info!("开始运行");
     loop {
         counter += 1;
         let address = {
@@ -116,51 +116,24 @@ async fn run_miner() -> Result<()> {
             }
         };
         let solution = find_solution(&address).await?;
-        // tracing::info!("solution值: {}", solution);
-        let res = agent.post("https://ec2-18-218-197-117.us-east-2.compute.amazonaws.com/validate")
-            .json(&serde_json::json!({
+        let data = serde_json::json!({
                 "solution": solution,
                 "challenge": "0x72424e4200000000000000000000000000000000000000000000000000000000",
                 "address": address,
                 "difficulty": DIFFICULTY,
                 "tick": "rBNB",
-            }))
-            .header("authority", "ec2-18-217-135-255.us-east-2.compute.amazonaws.com")
-            .header("accept-language", "zh-CN,zh;q=0.9,ko;q=0.8,ru;q=0.7")
-            .header("cache-control", "no-cache")
-            .header("origin", "https://bnb.reth.cc")
-            .header("pragma", "no-cache")
-            .header("referer", "https://bnb.reth.cc/")
-            .header("sec-ch-ua", "\"Not_A Brand\";v=\"8\", \"Chromium\";v=\"120\", \"Google Chrome\";v=\"120\"")
-            .header("sec-ch-ua-mobile", "?0")
-            .header("sec-ch-ua-platform", "\"macOS\"")
-            .header("sec-fetch-dest", "empty")
-            .header("sec-fetch-mode", "cors")
-            .header("sec-fetch-site", "cross-site")
-            .header("user-agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
-        tracing::info!("准备提交 {solution}");
-        match res.send().await {
-            Err(e) => {
-                tracing::info!("出错: {}", e);
-            }
-            Ok(res) => {
-                let status = res.status();
-                if counter % 10 == 0 || status != 200 {
-                    let text = res.text().await?;
-                    tracing::info!("状态码: {status}, 返回值: {}", text);
-                    continue;
-                }
-                tracing::info!("状态码: {}", status);
-            }
-        }
+            });
+        sender.put_to_send(data).await?;
     }
 }
 
 async fn get_balance(address: &str) {
     let agent = reqwest::Client::builder()
         .danger_accept_invalid_certs(true)
+        // .timeout(Duration::from_secs(5))
         .build()
         .unwrap();
+    let address = address.to_lowercase();
     let url = format!("https://ec2-18-218-197-117.us-east-2.compute.amazonaws.com/balance?address={address}");
     let res = agent.get(url);
     match res.send().await {
@@ -187,13 +160,18 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    RunMiner,
+    RunMiner(MinerArg),
     CheckBalance(AddrArg),
 }
 
 #[derive(Args, Debug)]
 struct AddrArg {
     address: String,
+}
+
+#[derive(Args, Debug)]
+struct MinerArg {
+    redis_address: Option<String>,
 }
 
 #[tokio::main]
@@ -204,11 +182,19 @@ async fn main() -> Result<()> {
         .init();
     let args = Cli::parse();
     match args.command {
-        Commands::RunMiner => {
-            tracing::info!("开始运行");
-            run_miner().await?;
+        Commands::RunMiner(MinerArg { redis_address }) => {
+            let sender = if let Some(addr) = redis_address {
+                tracing::info!("使用redis");
+                Sender::init(&addr)?
+            } else {
+                tracing::info!("不使用redis");
+                Sender::none_redis()?
+            };
+            sender.clone().run()?;
+            run_miner(sender).await?;
         }
-        Commands::CheckBalance(AddrArg{ address }) => {
+        Commands::CheckBalance(AddrArg { address }) => {
+            tracing::warn!("余额检查接口返回较慢，偶尔会一直卡住没有结果");
             loop {
                 get_balance(&address).await;
                 tokio::time::sleep(Duration::from_secs(5)).await;
