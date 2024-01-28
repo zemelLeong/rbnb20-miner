@@ -1,3 +1,4 @@
+use redis::AsyncCommands;
 use serde_json::Value;
 
 #[derive(Clone)]
@@ -35,13 +36,17 @@ impl Sender {
         self.redis_client.clone().unwrap()
     }
 
-    fn save_to_redis(&self, data: Value) -> anyhow::Result<()> {
+    async fn save_to_redis(&self, data: Value) -> anyhow::Result<()> {
         if !self.is_redis() {
             return Ok(());
         }
+        // ToDo 此处会卡死
         let client = self.get_redis_client();
-        let mut conn = client.get_connection()?;
-        redis::cmd("LPUSH").arg("solution").arg(data.to_string()).query(&mut conn)?;
+        tracing::info!("获取redis连接");
+        let mut conn = client.get_async_connection().await?;
+        tracing::info!("执行保存命令");
+        conn.lpush("solution", data.to_string()).await?;
+        tracing::info!("保存到redis成功");
 
         Ok(())
     }
@@ -66,14 +71,14 @@ impl Sender {
         match res.send().await {
             Err(e) => {
                 tracing::error!("出错: {}", e);
-                self.save_to_redis(data)?;
+                self.save_to_redis(data).await?;
                 tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
             }
             Ok(res) => {
                 let status = res.status();
                 if status == 503 {
                     tracing::info!("状态码: {}，将重新放入redis或丢弃", status);
-                    self.save_to_redis(data)?;
+                    self.save_to_redis(data).await?;
                     return Ok(());
                 }
                 if status != 200 {
@@ -89,7 +94,7 @@ impl Sender {
 
     pub async fn put_to_send(&self, data: Value) -> anyhow::Result<()> {
         if self.is_redis() {
-            self.save_to_redis(data)?;
+            self.save_to_redis(data).await?;
         } else {
             self.send(data).await?;
         }
@@ -101,15 +106,17 @@ impl Sender {
             return Ok(());
         }
         let client = self.get_redis_client();
-        let mut conn = client.get_connection()?;
+        let mut conn = client.get_async_connection().await?;
         loop {
-            let data: String = redis::cmd("RPOP").arg("solution").query(&mut conn)?;
+            tracing::info!("开始获取redis数据");
+            let data: String = conn.rpop("solution", None).await?;
             if data.is_empty() {
                 tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
                 continue;
             }
             let data: Value = serde_json::from_str(&data)?;
             self.send(data).await?;
+            tracing::info!("完成一次数据提交");
         }
     }
 

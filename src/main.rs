@@ -106,24 +106,25 @@ async fn run_miner(sender: Sender) -> Result<()> {
     let mut counter = 0;
     tracing::info!("开始运行");
     loop {
-        counter += 1;
-        let address = {
-            // 完成10次，帮助一次作者
-            if counter % 10 == 0 {
-                get_address(None)
-            } else {
-                get_address(Some(address_list.clone()))
-            }
-        };
-        let solution = find_solution(&address).await?;
-        let data = serde_json::json!({
-                "solution": solution,
-                "challenge": "0x72424e4200000000000000000000000000000000000000000000000000000000",
-                "address": address,
-                "difficulty": DIFFICULTY,
-                "tick": "rBNB",
-            });
-        sender.put_to_send(data).await?;
+        tokio::time::sleep(Duration::from_secs(10)).await;
+        // counter += 1;
+        // let address = {
+        //     // 完成10次，帮助一次作者
+        //     if counter % 10 == 0 {
+        //         get_address(None)
+        //     } else {
+        //         get_address(Some(address_list.clone()))
+        //     }
+        // };
+        // let solution = find_solution(&address).await?;
+        // let data = serde_json::json!({
+        //         "solution": solution,
+        //         "challenge": "0x72424e4200000000000000000000000000000000000000000000000000000000",
+        //         "address": address,
+        //         "difficulty": DIFFICULTY,
+        //         "tick": "rBNB",
+        //     });
+        // sender.put_to_send(data).await?;
     }
 }
 
