@@ -40,10 +40,9 @@ impl Sender {
         if !self.is_redis() {
             return Ok(());
         }
-        // ToDo 此处会卡死
         let client = self.get_redis_client();
         tracing::info!("获取redis连接");
-        let mut conn = client.get_async_connection().await?;
+        let mut conn = client.get_multiplexed_async_connection().await?;
         tracing::info!("执行保存命令");
         conn.lpush("solution", data.to_string()).await?;
         tracing::info!("保存到redis成功");
@@ -106,7 +105,7 @@ impl Sender {
             return Ok(());
         }
         let client = self.get_redis_client();
-        let mut conn = client.get_async_connection().await?;
+        let mut conn = client.get_multiplexed_async_connection().await?;
         loop {
             tracing::info!("开始获取redis数据");
             let data: String = conn.rpop("solution", None).await?;
