@@ -106,8 +106,14 @@ impl Sender {
         let client = self.get_redis_client();
         let mut conn = client.get_multiplexed_async_connection().await?;
         loop {
-            let data: String = match conn.rpop("solution", None).await {
-                Ok(val) => val,
+            let data: String = match conn.rpop::<_, Option<String>>("solution", None).await {
+                Ok(val) => {
+                    if val.is_none() {
+                        tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
+                        continue;
+                    }
+                    val.unwrap()
+                },
                 Err(e) => {
                     tracing::error!("redis出错：{}，将重新获取连接", e);
                     conn = client.get_multiplexed_async_connection().await?;

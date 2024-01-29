@@ -106,7 +106,6 @@ async fn run_miner(sender: Sender) -> Result<()> {
     let mut counter = 0;
     tracing::info!("开始运行");
     loop {
-        tokio::time::sleep(Duration::from_secs(10)).await;
         counter += 1;
         let address = {
             // 完成10次，帮助一次作者
