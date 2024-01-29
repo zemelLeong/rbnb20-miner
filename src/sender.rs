@@ -1,3 +1,4 @@
+use anyhow::anyhow;
 use redis::AsyncCommands;
 use serde_json::Value;
 
@@ -41,11 +42,9 @@ impl Sender {
             return Ok(());
         }
         let client = self.get_redis_client();
-        tracing::info!("获取redis连接");
+        // 电脑网络连接变化会导致获取连接一直卡住
         let mut conn = client.get_multiplexed_async_connection().await?;
-        tracing::info!("执行保存命令");
-        conn.lpush("solution", data.to_string()).await?;
-        tracing::info!("保存到redis成功");
+        conn.lpush("solution", data.to_string()).await.map_err(|e| anyhow!("数据保存出错: {}", e))?;
 
         Ok(())
     }
@@ -107,20 +106,32 @@ impl Sender {
         let client = self.get_redis_client();
         let mut conn = client.get_multiplexed_async_connection().await?;
         loop {
-            tracing::info!("开始获取redis数据");
-            let data: String = conn.rpop("solution", None).await?;
+            let data: String = match conn.rpop("solution", None).await {
+                Ok(val) => val,
+                Err(e) => {
+                    tracing::error!("redis出错：{}，将重新获取连接", e);
+                    conn = client.get_multiplexed_async_connection().await?;
+                    continue;
+                }
+            };
             if data.is_empty() {
                 tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
                 continue;
             }
             let data: Value = serde_json::from_str(&data)?;
             self.send(data).await?;
-            tracing::info!("完成一次数据提交");
         }
     }
 
     pub fn run(self) -> anyhow::Result<()> {
-        tokio::spawn(self.async_run());
+        tokio::spawn(async move {
+            loop {
+                if let Err(e) = self.clone().async_run().await {
+                    tracing::error!("数据发送出错: {}，将在2秒后重启", e);
+                    tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+                }
+            }
+        });
         Ok(())
     }
 }

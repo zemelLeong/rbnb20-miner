@@ -40,7 +40,6 @@ cargo run --release run-miner
 ## 使用redis缓存数据
 由于服务器经常崩溃，且六个九计算量不小，所以增加redis缓存数据功能，可以在服务器崩溃后将
 要提交的数据缓存到redis中，服务器恢复后再提交，充分利用电脑性能。
-`如果电脑性能不好不建议使用，会被计算占用cpu而无法发送数据`
 
 1. 自行安装redis软件：https://redis.io/docs/install/install-redis/
 2. 执行命令启动服务：`./rbnb20-miner[.exe] run-miner redis://[username][:password@]host[:port]/[db-number]`
